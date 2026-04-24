@@ -568,7 +568,7 @@ def fetch_data():
 
 
 # ═══════════════════════════════════════════════
-# RECONNAISSANCE HINTS
+# RECONNAISSANCE HINTS & INTENTIONAL LEAKS
 # ═══════════════════════════════════════════════
 
 @app.route('/robots.txt', methods=['GET'])
@@ -582,6 +582,61 @@ def robots_txt():
         resp.headers['Content-Type'] = 'text/plain'
         return resp
     return "User-agent: *\nDisallow: /staff_portal\n", 200, {'Content-Type': 'text/plain'}
+
+
+@app.route('/backup_configs/', methods=['GET'])
+def backup_configs_index():
+    """
+    INTENTIONAL VULNERABILITY: Exposed backup directory.
+    Lists files in backup_configs/ — simulates a misconfigured
+    web server with directory listing enabled.
+    The .env.bak file contains employee1 credentials.
+    """
+    backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup_configs')
+    if not os.path.isdir(backup_dir):
+        abort(404)
+
+    files = os.listdir(backup_dir)
+    log_security_event('RECON_BACKUP', request.remote_addr, 'Directory listing accessed: /backup_configs/')
+
+    listing = '<html><head><title>Index of /backup_configs/</title></head>'
+    listing += '<body><h1>Index of /backup_configs/</h1><hr><pre>'
+    listing += '<a href="/">../</a>\n'
+    for fname in sorted(files):
+        fpath = os.path.join(backup_dir, fname)
+        size = os.path.getsize(fpath) if os.path.isfile(fpath) else '-'
+        listing += f'<a href="/backup_configs/{fname}">{fname}</a>{"":>{40-len(fname)}} {size}\n'
+    listing += '</pre><hr></body></html>'
+
+    resp = make_response(listing)
+    resp.headers['Content-Type'] = 'text/html'
+    return resp
+
+
+@app.route('/backup_configs/<path:filename>', methods=['GET'])
+def backup_configs_file(filename):
+    """
+    INTENTIONAL VULNERABILITY: Serves backup config files.
+    The .env.bak contains leaked employee1 credentials + internal API info.
+    """
+    # Prevent directory traversal
+    if '..' in filename or '/' in filename or '\\' in filename:
+        abort(403)
+
+    backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup_configs')
+    filepath = os.path.join(backup_dir, filename)
+
+    if not os.path.isfile(filepath):
+        abort(404)
+
+    log_security_event('RECON_BACKUP', request.remote_addr, f'File accessed: /backup_configs/{filename}')
+
+    with open(filepath, 'r', errors='replace') as f:
+        content = f.read()
+
+    resp = make_response(content)
+    resp.headers['Content-Type'] = 'text/plain'
+    return resp
 
 
 # ═══════════════════════════════════════════════
