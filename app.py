@@ -498,6 +498,21 @@ def fetch_data():
     record_rate_limit(client_ip, 'ssrf')
 
     if is_safe_url(target_url):
+        # ──────────────────────────────────────────────
+        # CTF ENGINEERING FIX: Python 'requests' struggles to resolve pure
+        # decimal IPs via getaddrinfo on Windows, returning a DNS error.
+        # We manually translate it here so the SSRF exploit works cross-platform.
+        # ──────────────────────────────────────────────
+        try:
+            parsed_req = urllib.parse.urlparse(target_url)
+            if parsed_req.hostname and parsed_req.hostname.isdigit():
+                # Convert decimal IP back to dotted decimal for requests Lib
+                ip_int = int(parsed_req.hostname)
+                new_host = f"{(ip_int >> 24) & 255}.{(ip_int >> 16) & 255}.{(ip_int >> 8) & 255}.{ip_int & 255}"
+                target_url = target_url.replace(parsed_req.hostname, new_host)
+        except Exception:
+            pass
+            
         try:
             # [FIX #10] Disable redirect following — prevents blacklist bypass via 302
             # [FIX #4] Use streaming + size cap to prevent OOM
