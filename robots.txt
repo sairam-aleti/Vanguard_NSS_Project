@@ -1,0 +1,16 @@
+# Vanguard Logistics — Web Crawler Directives
+# Last updated: 2024-Q3 by IT Security
+
+User-agent: *
+Allow: /
+Disallow: /staff_portal
+Disallow: /dashboard
+Disallow: /fetch_data
+Disallow: /backup_configs/
+Disallow: /static/js/shield.js
+
+# Internal note: SSH maintenance port moved to 58229
+# per IT Security Memo VG-SEC-2024-Q3-0147
+# Contact: sysadmin@vanguard-logistics.internal
+
+Sitemap: https://www.vanguard-logistics.com/sitemap.xml

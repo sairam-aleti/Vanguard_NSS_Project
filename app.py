@@ -1,245 +1,688 @@
-from flask import Flask, request, session, redirect, url_for, render_template_string
+"""
+Vanguard Logistics — Main Web Application
+==========================================
+Flask web application serving the corporate logistics website.
+Includes a hidden staff portal with intentional SSRF vulnerability
+for CTF demonstration purposes.
+
+SECURITY HARDENING (Red Team Audit v2):
+    - SSRF: Scheme whitelist (http/https only), no redirects, response size cap
+    - DoS: Request size limit, log rotation, rate limiting on all forms
+    - Session: Regeneration on login, IP binding
+    - Headers: Server header stripped, full security header set
+    - Errors: Custom error pages, no information leaks
+
+DEPLOYMENT:
+    - Production: Run with debug=False on port 80
+    - Bind to 0.0.0.0 for DMZ network access
+"""
+
+from flask import (
+    Flask, request, session, redirect, url_for,
+    render_template, jsonify, abort, make_response
+)
 import sqlite3
 import hashlib
-import requests
+import requests as http_requests
 import urllib.parse
+import os
+import re
+import time
+import datetime
+import secrets
+
+# ═══════════════════════════════════════════════
+# APP CONFIGURATION
+# ═══════════════════════════════════════════════
 
 app = Flask(__name__)
-app.secret_key = "vanguard_super_secret_session_key"
+app.secret_key = os.environ.get('VG_SECRET_KEY', secrets.token_hex(32))
 
-# --- HTML TEMPLATES (Embedded for simplicity) ---
-LOGIN_HTML = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vanguard Secure Gateway</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen flex items-center justify-center font-sans selection:bg-cyan-500/30">
-    <div class="w-full max-w-md p-8 bg-slate-800/80 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl shadow-cyan-900/20">
-        <div class="mb-8 text-center">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-900/50 border border-cyan-500/30 mb-4 shadow-[0_0_15px_rgba(34,211,238,0.15)]">
-                <svg class="w-8 h-8 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                </svg>
-            </div>
-            <h2 class="text-2xl font-bold tracking-tight text-white">Vanguard Secure Gateway</h2>
-            <p class="text-sm text-slate-400 mt-2">Authorized Access Only</p>
-        </div>
+# Session Security
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes
 
-        {% if error %}
-        <div class="mb-6 p-4 bg-red-900/30 border border-red-500/50 rounded-lg text-red-200 text-sm flex items-center">
-            <svg class="w-5 h-5 mr-3 flex-shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-            </svg>
-            {{ error }}
-        </div>
-        {% endif %}
+# [FIX #3] Request body size limit — prevents memory exhaustion DoS
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1 MB max
 
-        <form method="POST" action="/login" class="space-y-6">
-            <div>
-                <label for="username" class="block text-sm font-medium text-slate-400 mb-1">Username</label>
-                <input type="text" id="username" name="username" required 
-                    class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all duration-200">
-            </div>
-            <div>
-                <label for="password" class="block text-sm font-medium text-slate-400 mb-1">Password</label>
-                <input type="password" id="password" name="password" required 
-                    class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all duration-200">
-            </div>
-            <button type="submit" 
-                class="w-full py-3 px-4 flex justify-center items-center bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-lg hover:shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 focus:ring-offset-slate-900">
-                Authenticate
-                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                </svg>
-            </button>
-        </form>
-    </div>
-</body>
-</html>
-"""
+# Log file size cap (10 MB) — prevents disk exhaustion DoS [FIX #5]
+MAX_LOG_SIZE = 10 * 1024 * 1024
 
-DASHBOARD_HTML = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vanguard Command Center</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen font-sans">
-    
-    <!-- Navigation -->
-    <nav class="bg-slate-800/90 border-b border-slate-700/50 backdrop-blur-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <div class="flex items-center space-x-3">
-                    <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
-                    </svg>
-                    <span class="font-bold text-lg tracking-wide text-white">Vanguard Command Center</span>
-                </div>
-                <div>
-                    <a href="/logout" class="flex items-center text-slate-400 hover:text-red-400 transition-colors duration-200 text-sm font-medium">
-                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-                        </svg>
-                        Logout
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+# SSRF response size cap — prevents OOM [FIX #4]
+MAX_SSRF_RESPONSE_SIZE = 512 * 1024  # 512 KB
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        
-        <!-- Profile Card -->
-        <div class="bg-slate-800/60 border border-slate-700/50 rounded-xl p-6 shadow-lg flex items-center space-x-5">
-            <div class="w-14 h-14 rounded-full bg-slate-900 border-2 border-cyan-500/50 flex items-center justify-center relative shadow-[0_0_10px_rgba(34,211,238,0.2)]">
-                <svg class="w-7 h-7 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                </svg>
-                <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-slate-800 rounded-full"></div>
-            </div>
-            <div>
-                <p class="text-sm font-medium text-slate-400 mb-0.5">Active Session</p>
-                <h3 class="text-xl font-semibold text-white">{{ username }}</h3>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-cyan-900/30 text-cyan-300 border border-cyan-500/20 mt-1">
-                    Role: {{ role }}
-                </span>
-            </div>
-        </div>
+# ═══════════════════════════════════════════════
+# SECURITY MIDDLEWARE
+# ═══════════════════════════════════════════════
 
-        <!-- Core Tool -->
-        <div class="bg-slate-800/80 border border-slate-700/50 rounded-xl overflow-hidden shadow-xl">
-            <div class="px-6 py-5 border-b border-slate-700/50 bg-slate-800/50 flex items-center">
-                <div class="w-2 h-2 rounded-full bg-cyan-400 mr-3 animate-pulse"></div>
-                <h3 class="text-lg font-medium text-white">Customs API Fetcher</h3>
-            </div>
-            <div class="p-6">
-                <div class="mb-5">
-                    <p class="text-sm text-slate-400">Diagnostic Tool: Fetch remote shipping manifests or structured API data over internal network.</p>
-                </div>
-                <form method="GET" action="/fetch_data" class="flex flex-col sm:flex-row gap-4">
-                    <div class="flex-grow relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg class="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
-                            </svg>
-                        </div>
-                        <input type="text" name="url" placeholder="http://internal-api.vanguard/manifests" required
-                            class="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all font-mono text-sm shadow-inner">
-                    </div>
-                    <button type="submit" 
-                        class="w-full sm:w-auto px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-lg flex justify-center items-center hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 focus:ring-offset-slate-900 whitespace-nowrap">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                        </svg>
-                        Fetch Data
-                    </button>
-                </form>
-            </div>
-        </div>
+# Unified rate limiting store (used for login, contact, tracking)
+_rate_limits = {}
+RATE_LIMIT_WINDOW = 60  # 1 minute window
 
-    </main>
-</body>
-</html>
-"""
+RATE_LIMITS = {
+    'login': 5,      # Max 5 login attempts per minute per IP
+    'contact': 3,    # Max 3 contact submissions per minute per IP [FIX #8]
+    'tracking': 10,  # Max 10 tracking queries per minute per IP [FIX #9]
+    'ssrf': 15,      # Max 15 SSRF requests per minute per IP
+}
 
-# --- CORE LOGIC ---
 
-@app.route('/', methods=['GET'])
-def index():
-    if 'username' in session:
-        return redirect(url_for('dashboard'))
-    return render_template_string(LOGIN_HTML, error="")
+@app.after_request
+def apply_security_headers(response):
+    """Apply comprehensive security headers to all responses."""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+    response.headers['Cross-Origin-Resource-Policy'] = 'same-origin'
 
-@app.route('/login', methods=['POST'])
-def login():
-    username = request.form['username']
-    password = request.form['password']
-    hashed_pw = hashlib.md5(password.encode()).hexdigest()
+    # [FIX #6] Strip server header to hide technology stack
+    response.headers.pop('Server', None)
+    response.headers['Server'] = 'Vanguard-Gateway/4.2'
 
-    conn = sqlite3.connect('vanguard.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT role FROM users WHERE username=? AND password_hash=?", (username, hashed_pw))
-    user = cursor.fetchone()
-    conn.close()
+    return response
 
-    if user:
-        session['username'] = username
-        session['role'] = user[0]
-        return redirect(url_for('dashboard'))
-    else:
-        return render_template_string(LOGIN_HTML, error="Invalid credentials. Intrusion logged.")
 
-@app.route('/dashboard')
-def dashboard():
-    if 'username' not in session:
-        return redirect(url_for('index'))
-    return render_template_string(DASHBOARD_HTML, username=session['username'], role=session['role'])
+@app.before_request
+def enforce_security():
+    """Pre-request security enforcement."""
+    # [FIX #12] Block unexpected HTTP methods globally
+    allowed_methods = {'GET', 'POST', 'HEAD', 'OPTIONS'}
+    if request.method not in allowed_methods:
+        log_security_event('BLOCKED_METHOD', request.remote_addr,
+                           f'Method: {request.method} Path: {request.path}')
+        abort(405)
 
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('index'))
+    # CSRF protection for POST requests
+    if request.method == "POST":
+        token = session.get('csrf_token')
+        form_token = request.form.get('csrf_token')
+        if not token or not form_token or token != form_token:
+            log_security_event('CSRF_VIOLATION', request.remote_addr, f'Path: {request.path}')
+            abort(403)
 
-# --- VULNERABILITY: THE SSRF ENDPOINT ---
 
-def is_safe_url(target_url):
-    """
-    WEAK FILTER: The developer tried to block internal routing, 
-    but forgot about Decimal IPs and IPv6 loopbacks.
-    """
-    blacklist = ['127.0.0.1', 'localhost', '10.0.0.15', '192.168.']
-    parsed_url = urllib.parse.urlparse(target_url)
-    hostname = parsed_url.hostname
-    
-    if not hostname:
-        return False
-        
-    for blocked in blacklist:
-        if blocked in hostname:
+def generate_csrf_token():
+    """Generate a CSRF token for the session."""
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
+
+
+# Make csrf_token() available in all templates
+app.jinja_env.globals['csrf_token'] = generate_csrf_token
+
+
+def check_rate_limit(ip, category='login'):
+    """Universal rate limiter for any action category."""
+    now = time.time()
+    key = f"{category}:{ip}"
+    max_attempts = RATE_LIMITS.get(category, 5)
+
+    if key in _rate_limits:
+        _rate_limits[key] = [t for t in _rate_limits[key] if now - t < RATE_LIMIT_WINDOW]
+        if len(_rate_limits[key]) >= max_attempts:
             return False
     return True
 
+
+def record_rate_limit(ip, category='login'):
+    """Record an action for rate limiting."""
+    key = f"{category}:{ip}"
+    if key not in _rate_limits:
+        _rate_limits[key] = []
+    _rate_limits[key].append(time.time())
+
+    # Periodic cleanup: remove stale entries to prevent memory growth
+    if len(_rate_limits) > 10000:
+        cutoff = time.time() - RATE_LIMIT_WINDOW
+        stale = [k for k, v in _rate_limits.items() if all(t < cutoff for t in v)]
+        for k in stale:
+            del _rate_limits[k]
+
+
+# ═══════════════════════════════════════════════
+# DATABASE HELPER
+# ═══════════════════════════════════════════════
+
+def get_db():
+    """Get a database connection with WAL mode and timeout."""
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vanguard.db')
+    conn = sqlite3.connect(db_path, timeout=5)
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
+
+# ═══════════════════════════════════════════════
+# LOGGING (with size cap)
+# ═══════════════════════════════════════════════
+
+def log_security_event(event_type, ip, details):
+    """
+    Write structured security events to security.log.
+    [FIX #5] Caps log file at MAX_LOG_SIZE to prevent disk exhaustion.
+    """
+    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'security.log')
+
+    # Check log size before writing — rotate if too large
+    try:
+        if os.path.exists(log_path) and os.path.getsize(log_path) > MAX_LOG_SIZE:
+            # Rotate: keep last 50% of log, discard oldest
+            with open(log_path, 'r') as f:
+                lines = f.readlines()
+            half = len(lines) // 2
+            with open(log_path, 'w') as f:
+                f.writelines(lines[half:])
+    except (IOError, OSError):
+        pass
+
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # Sanitize details to prevent log injection
+    safe_details = details.replace('\n', ' ').replace('\r', ' ')[:500]
+    log_entry = f"[{timestamp}] {event_type} | IP: {ip} | {safe_details}\n"
+    try:
+        with open(log_path, "a") as f:
+            f.write(log_entry)
+    except IOError:
+        pass
+
+
+# ═══════════════════════════════════════════════
+# PUBLIC ROUTES — The Corporate "Mask"
+# ═══════════════════════════════════════════════
+
+@app.route('/', methods=['GET'])
+def index():
+    """Corporate landing page."""
+    return render_template('index.html')
+
+
+@app.route('/about', methods=['GET'])
+def about():
+    """Company information page."""
+    return render_template('about.html')
+
+
+@app.route('/tracking', methods=['GET', 'POST'])
+def tracking():
+    """Shipment tracking page — also acts as a reconnaissance honeypot."""
+    result = None
+    if request.method == 'POST':
+        client_ip = request.remote_addr
+
+        # [FIX #9] Rate limit tracking queries
+        if not check_rate_limit(client_ip, 'tracking'):
+            log_security_event('RATE_LIMITED', client_ip, 'Tracking query rate limit exceeded')
+            return render_template('tracking.html', result=None), 429
+
+        tracking_id = request.form.get('tracking_id', '').strip()
+        # Sanitize: only allow alphanumeric and hyphens
+        tracking_id = re.sub(r'[^a-zA-Z0-9\-]', '', tracking_id)
+
+        if tracking_id and len(tracking_id) <= 30:
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT tracking_id, origin, destination, status, eta, weight "
+                    "FROM shipments WHERE tracking_id=?",
+                    (tracking_id,)
+                )
+                shipment = cursor.fetchone()
+                conn.close()
+
+                if shipment:
+                    result = {
+                        'tracking_id': shipment[0],
+                        'origin': shipment[1],
+                        'destination': shipment[2],
+                        'status': shipment[3],
+                        'eta': shipment[4],
+                        'weight': shipment[5],
+                    }
+                else:
+                    result = 'not_found'
+            except Exception:
+                result = 'not_found'
+
+            # Log all tracking queries for SIEM correlation
+            log_security_event('TRACKING_QUERY', client_ip, f'Query: {tracking_id}')
+        else:
+            result = 'not_found'
+
+        record_rate_limit(client_ip, 'tracking')
+
+    return render_template('tracking.html', result=result)
+
+
+@app.route('/contact', methods=['GET', 'POST'])
+def contact():
+    """Contact page with form submission."""
+    contact_sent = False
+    if request.method == 'POST':
+        client_ip = request.remote_addr
+
+        # [FIX #8] Rate limit contact form
+        if not check_rate_limit(client_ip, 'contact'):
+            log_security_event('RATE_LIMITED', client_ip, 'Contact form rate limit exceeded')
+            return render_template('contact.html', contact_sent=False), 429
+
+        name = request.form.get('name', '')[:100]
+        email = request.form.get('email', '')[:100]
+        # Validate email format loosely
+        if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+            return render_template('contact.html', contact_sent=False)
+
+        log_security_event('CONTACT_FORM', client_ip, f'From: {name}')
+        record_rate_limit(client_ip, 'contact')
+        contact_sent = True
+
+    return render_template('contact.html', contact_sent=contact_sent)
+
+
+# ═══════════════════════════════════════════════
+# HIDDEN STAFF PORTAL — Accessible only via /staff_portal
+# ═══════════════════════════════════════════════
+
+@app.route('/staff_portal', methods=['GET', 'POST'])
+def staff_portal():
+    """Hidden staff login page — not linked in navigation."""
+    if 'username' in session:
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        client_ip = request.remote_addr
+
+        # Rate limiting
+        if not check_rate_limit(client_ip, 'login'):
+            log_security_event('RATE_LIMITED', client_ip, 'Login rate limit exceeded')
+            return render_template('portal.html', error='Too many login attempts. Access temporarily suspended. Incident logged.'), 429
+
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+
+        # Input validation
+        if len(username) > 50 or len(password) > 100:
+            return render_template('portal.html', error='Invalid input.')
+
+        if not re.match(r'^[a-zA-Z0-9_]+$', username):
+            return render_template('portal.html', error='Invalid username format.')
+
+        # Authenticate with MD5 hash (intentionally weak for CTF)
+        hashed_pw = hashlib.md5(password.encode()).hexdigest()
+
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT role FROM users WHERE username=? AND password_hash=?",
+                (username, hashed_pw)
+            )
+            user = cursor.fetchone()
+            conn.close()
+        except Exception:
+            return render_template('portal.html', error='Authentication service unavailable.')
+
+        record_rate_limit(client_ip, 'login')
+
+        if user:
+            # [FIX #7] Session regeneration to prevent session fixation
+            # Clear the old session completely, then set new values
+            old_csrf = session.get('csrf_token')
+            session.clear()
+            session.permanent = True
+            session['username'] = username
+            session['role'] = user[0]
+            session['login_ip'] = client_ip
+            session['login_time'] = time.time()
+            if old_csrf:
+                session['csrf_token'] = old_csrf
+            log_security_event('LOGIN_SUCCESS', client_ip, f'User: {username}')
+            return redirect(url_for('dashboard'))
+        else:
+            log_security_event('LOGIN_FAILED', client_ip, f'Attempted user: {username}')
+            return render_template('portal.html', error='Invalid credentials. This attempt has been logged and reported to SOC.')
+
+    return render_template('portal.html', error=None)
+
+
+@app.route('/dashboard', methods=['GET'])
+def dashboard():
+    """Staff dashboard — requires authentication."""
+    if 'username' not in session:
+        return redirect(url_for('staff_portal'))
+    return render_template('dashboard.html', username=session['username'], role=session['role'])
+
+
+@app.route('/logout', methods=['GET'])
+def logout():
+    """Clear session and redirect to home."""
+    if 'username' in session:
+        log_security_event('LOGOUT', request.remote_addr, f'User: {session["username"]}')
+    session.clear()
+    return redirect(url_for('index'))
+
+
+# ═══════════════════════════════════════════════
+# SSRF VULNERABILITY — The Intentional Flaw
+# ═══════════════════════════════════════════════
+
+def is_safe_url(target_url):
+    """
+    SECURITY FILTER for the API Fetcher tool.
+
+    BLOCKS:
+      - Non-HTTP schemes (file://, ftp://, gopher://, dict://)  [FIX #1, #2]
+      - Known internal IPs (127.0.0.1, localhost, 10.0.0.15, 192.168.x.x)
+      - IPv6 loopback (::1, [::1])  [FIX #14]
+      - Private network ranges (172.16-31.x.x, 169.254.x.x)
+
+    INTENTIONAL WEAKNESS (CTF Design):
+      - Decimal-encoded IPs bypass the string blacklist
+      - e.g., 2130706433 = 127.0.0.1 — this is the Red Team attack vector
+    """
+    parsed = urllib.parse.urlparse(target_url)
+
+    # [FIX #1, #2] SCHEME WHITELIST — block file://, ftp://, gopher://, dict://
+    if parsed.scheme not in ('http', 'https'):
+        return False
+
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+
+    # Convert to lowercase for case-insensitive matching
+    hostname_lower = hostname.lower()
+
+    # IP/hostname blacklist (catches common representations)
+    blacklist = [
+        '127.0.0.1',
+        'localhost',
+        '10.0.0.15',
+        '192.168.',
+        '0.0.0.0',
+        '169.254.',     # Link-local
+        '172.16.',      # Private class B
+        '172.17.',
+        '172.18.',
+        '172.19.',
+        '172.20.',
+        '172.21.',
+        '172.22.',
+        '172.23.',
+        '172.24.',
+        '172.25.',
+        '172.26.',
+        '172.27.',
+        '172.28.',
+        '172.29.',
+        '172.30.',
+        '172.31.',
+    ]
+
+    for blocked in blacklist:
+        if blocked in hostname_lower:
+            return False
+
+    # [FIX #14] Block IPv6 loopback representations
+    ipv6_blacklist = ['::1', '0:0:0:0:0:0:0:1', '::ffff:127.0.0.1']
+    # Strip brackets from IPv6 addresses
+    stripped = hostname_lower.strip('[]')
+    for blocked_v6 in ipv6_blacklist:
+        if stripped == blocked_v6:
+            return False
+
+    # Block hex-encoded IPs (0x7f.0x0.0x0.0x1)
+    if hostname_lower.startswith('0x'):
+        return False
+
+    # Block octal-encoded IPs (0177.0.0.1)
+    if re.match(r'^0\d+\.', hostname_lower):
+        return False
+
+    # ──────────────────────────────────────────────
+    # INTENTIONAL GAP: Pure decimal IPs (2130706433)
+    # are NOT caught by string matching above.
+    # This is the designed Red Team bypass vector.
+    # ──────────────────────────────────────────────
+
+    return True
+
+
 @app.route('/fetch_data', methods=['GET'])
 def fetch_data():
+    """
+    SSRF endpoint — fetches data from a user-supplied URL.
+    The weak filter can be bypassed using decimal IP encoding.
+    """
     if 'username' not in session:
-        return redirect(url_for('index'))
-        
-    target_url = request.args.get('url')
-    if not target_url:
-        return "Please provide a URL.", 400
+        return redirect(url_for('staff_portal'))
 
-    # The Vulnerable Logic
+    client_ip = request.remote_addr
+
+    # Rate limit SSRF requests
+    if not check_rate_limit(client_ip, 'ssrf'):
+        log_security_event('RATE_LIMITED', client_ip, 'SSRF rate limit exceeded')
+        return render_template(
+            'dashboard.html',
+            username=session['username'],
+            role=session['role'],
+            fetch_error='Rate limit exceeded. Please wait before making more requests.'
+        ), 429
+
+    target_url = request.args.get('url', '').strip()
+
+    if not target_url:
+        return render_template(
+            'dashboard.html',
+            username=session['username'],
+            role=session['role'],
+            fetch_error='No URL provided. Enter a target endpoint.'
+        )
+
+    # Input length check
+    if len(target_url) > 500:
+        return render_template(
+            'dashboard.html',
+            username=session['username'],
+            role=session['role'],
+            fetch_error='URL exceeds maximum length.'
+        )
+
+    record_rate_limit(client_ip, 'ssrf')
+
     if is_safe_url(target_url):
         try:
-            # SSRF Execution: The server makes the request on behalf of the user
-            response = requests.get(target_url, timeout=3)
-            return f"<pre>{response.text}</pre>"
-        except Exception as e:
-            return f"Error fetching remote API: {e}", 500
+            # [FIX #10] Disable redirect following — prevents blacklist bypass via 302
+            # [FIX #4] Use streaming + size cap to prevent OOM
+            response = http_requests.get(
+                target_url,
+                timeout=5,
+                allow_redirects=False,
+                stream=True
+            )
+
+            # Read response with size cap
+            content_chunks = []
+            bytes_read = 0
+            for chunk in response.iter_content(chunk_size=8192, decode_unicode=True):
+                bytes_read += len(chunk)
+                if bytes_read > MAX_SSRF_RESPONSE_SIZE:
+                    content_chunks.append('\n\n[TRUNCATED: Response exceeded 512KB limit]')
+                    break
+                content_chunks.append(chunk if isinstance(chunk, str) else chunk.decode('utf-8', errors='replace'))
+            response.close()
+
+            raw_text = ''.join(content_chunks)
+
+            log_security_event('SSRF_FETCH', client_ip,
+                               f'URL: {target_url} | Status: {response.status_code} | Size: {bytes_read}')
+
+            # Sanitize output — Jinja2 autoescapes, but belt-and-suspenders
+            safe_text = raw_text.replace('<script', '&lt;script').replace('</script', '&lt;/script')
+
+            return render_template(
+                'dashboard.html',
+                username=session['username'],
+                role=session['role'],
+                fetch_result=safe_text
+            )
+
+        except http_requests.exceptions.Timeout:
+            return render_template(
+                'dashboard.html',
+                username=session['username'],
+                role=session['role'],
+                fetch_error='Connection timed out. Target host unreachable.'
+            )
+        except http_requests.exceptions.ConnectionError:
+            return render_template(
+                'dashboard.html',
+                username=session['username'],
+                role=session['role'],
+                fetch_error='Connection refused. Host may be offline.'
+            )
+        except Exception:
+            # [FIX #11] Never leak exception details
+            return render_template(
+                'dashboard.html',
+                username=session['username'],
+                role=session['role'],
+                fetch_error='Request failed. Unable to reach the specified endpoint.'
+            )
     else:
-        # ... (rest of the fetch_data function above)
-        if is_safe_url(target_url):
-            try:
-                # SSRF Execution: The server makes the request on behalf of the user
-                response = requests.get(target_url, timeout=3)
-                return f"<pre>{response.text}</pre>"
-            except Exception as e:
-                return f"Error fetching remote API: {e}", 500
-        else:
-            # --- NEW CODE: Write to the SIEM log ---
-            with open("security.log", "a") as log_file:
-                log_file.write(f"BLOCKED SSRF ATTEMPT: {target_url}\n")
-            # ---------------------------------------
-            return "<b>[SECURITY ALERT]</b> Internal IP addresses are strictly prohibited. Action logged.", 403
+        # BLOCKED — log for SIEM daemon
+        log_security_event('BLOCKED_SSRF', client_ip, f'Blocked URL: {target_url}')
+        return render_template(
+            'dashboard.html',
+            username=session['username'],
+            role=session['role'],
+            fetch_error='[SECURITY ALERT] Internal IP addresses are strictly prohibited. This attempt has been logged and escalated to SOC.'
+        )
+
+
+# ═══════════════════════════════════════════════
+# RECONNAISSANCE HINTS
+# ═══════════════════════════════════════════════
+
+@app.route('/robots.txt', methods=['GET'])
+def robots_txt():
+    """Serve robots.txt with intentional SSH port hint."""
+    robots_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'robots.txt')
+    if os.path.exists(robots_path):
+        with open(robots_path, 'r') as f:
+            content = f.read()
+        resp = make_response(content)
+        resp.headers['Content-Type'] = 'text/plain'
+        return resp
+    return "User-agent: *\nDisallow: /staff_portal\n", 200, {'Content-Type': 'text/plain'}
+
+
+# ═══════════════════════════════════════════════
+# ERROR HANDLERS — [FIX #11] No information leaks
+# ═══════════════════════════════════════════════
+
+ERROR_PAGE = """<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>{{ code }} — Vanguard Logistics</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="bg-[#0a0e1a] text-slate-200 min-h-screen flex items-center justify-center font-sans">
+<div class="text-center">
+<div class="text-6xl font-bold text-cyan-400 mb-4">{{ code }}</div>
+<h1 class="text-xl font-semibold text-white mb-2">{{ title }}</h1>
+<p class="text-slate-500 mb-8">{{ message }}</p>
+<a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-xl transition-all">
+Return Home
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+</a></div></body></html>"""
+
+
+@app.errorhandler(400)
+def bad_request(e):
+    return make_response(
+        ERROR_PAGE.replace('{{ code }}', '400')
+        .replace('{{ title }}', 'Bad Request')
+        .replace('{{ message }}', 'The request could not be processed.'),
+        400
+    )
+
+
+@app.errorhandler(403)
+def forbidden(e):
+    return make_response(
+        ERROR_PAGE.replace('{{ code }}', '403')
+        .replace('{{ title }}', 'Access Denied')
+        .replace('{{ message }}', 'You do not have permission to access this resource.'),
+        403
+    )
+
+
+@app.errorhandler(404)
+def not_found(e):
+    # Log 404s for reconnaissance detection
+    log_security_event('NOT_FOUND', request.remote_addr, f'Path: {request.path}')
+    return make_response(
+        ERROR_PAGE.replace('{{ code }}', '404')
+        .replace('{{ title }}', 'Page Not Found')
+        .replace('{{ message }}', 'The requested resource does not exist on this server.'),
+        404
+    )
+
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return make_response(
+        ERROR_PAGE.replace('{{ code }}', '405')
+        .replace('{{ title }}', 'Method Not Allowed')
+        .replace('{{ message }}', 'The request method is not supported for this endpoint.'),
+        405
+    )
+
+
+@app.errorhandler(413)
+def payload_too_large(e):
+    return make_response(
+        ERROR_PAGE.replace('{{ code }}', '413')
+        .replace('{{ title }}', 'Payload Too Large')
+        .replace('{{ message }}', 'The submitted data exceeds the maximum allowed size.'),
+        413
+    )
+
+
+@app.errorhandler(429)
+def too_many_requests(e):
+    return make_response(
+        ERROR_PAGE.replace('{{ code }}', '429')
+        .replace('{{ title }}', 'Too Many Requests')
+        .replace('{{ message }}', 'Rate limit exceeded. Please wait before retrying.'),
+        429
+    )
+
+
+@app.errorhandler(500)
+def server_error(e):
+    return make_response(
+        ERROR_PAGE.replace('{{ code }}', '500')
+        .replace('{{ title }}', 'Internal Error')
+        .replace('{{ message }}', 'An unexpected error occurred. The incident has been logged.'),
+        500
+    )
+
+
+# ═══════════════════════════════════════════════
+# MAIN ENTRY POINT
+# ═══════════════════════════════════════════════
 
 if __name__ == '__main__':
-    # Running on port 80 locally for testing
-    app.run(host='0.0.0.0', port=80, debug=True)
+    # CRITICAL: debug=False in production to prevent Werkzeug RCE
+    app.run(
+        host='0.0.0.0',
+        port=80,
+        debug=False
+    )

@@ -1,0 +1,32 @@
+[Unit]
+Description=Vanguard Logistics Web Application
+Documentation=https://vanguard-logistics.com/docs
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vanguard
+Group=vanguard
+WorkingDirectory=/opt/vanguard
+Environment=VG_SECRET_KEY=change_this_to_random_64char_hex_string
+ExecStart=/opt/vanguard/venv/bin/python /opt/vanguard/app.py
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Security Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/vanguard
+PrivateTmp=yes
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vanguard-web
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,30 @@
+[Unit]
+Description=Vanguard Internal API Server
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vanguard
+Group=vanguard
+WorkingDirectory=/opt/vanguard
+ExecStart=/opt/vanguard/venv/bin/python /opt/vanguard/internal_api.py
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Security
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/vanguard
+PrivateTmp=yes
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vanguard-api
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,28 @@
+# Virtual Environment
+venv/
+.venv/
+
+# Database (regenerated via db_setup.py)
+vanguard.db
+
+# Encryption files (regenerated via db_setup.py)
+vault.key
+manifest.enc
+
+# Logs
+*.log
+siem_daemon.log
+api_access.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

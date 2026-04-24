@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% set active_page = 'about' %}
+
+{% block title %}About Us{% endblock %}
+{% block meta_description %}Learn about Vanguard Logistics — 37 years of excellence in global freight management, customs brokerage, and supply chain security.{% endblock %}
+
+{% block nav_class %}scrolled{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<section class="pt-32 pb-16 relative overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-b from-cyan-500/5 to-transparent"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div class="max-w-3xl">
+            <span class="inline-block text-xs font-semibold text-cyan-400 uppercase tracking-[0.2em] mb-4 animate-fade-in-up">About Vanguard</span>
+            <h1 class="text-4xl sm:text-5xl font-bold text-white mb-6 animate-fade-in-up delay-100 leading-tight">
+                Pioneering Secure Logistics Since <span class="text-cyan-400">1987</span>
+            </h1>
+            <p class="text-lg text-slate-400 leading-relaxed animate-fade-in-up delay-200">
+                What started as a single freight forwarding office in Rotterdam has grown into a 
+                global logistics powerhouse, serving over 3,000 enterprise clients across 150+ countries.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- Company Story -->
+<section class="py-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div class="reveal">
+                <h2 class="text-3xl font-bold text-white mb-6">Our Mission</h2>
+                <p class="text-slate-400 mb-6 leading-relaxed">
+                    Vanguard Logistics exists to solve the world's most complex supply chain challenges. 
+                    We combine military-grade operational discipline with cutting-edge technology to ensure 
+                    that every shipment — from a single pallet to a fleet of containers — arrives securely, 
+                    on time, every time.
+                </p>
+                <p class="text-slate-400 leading-relaxed">
+                    Our name carries weight in every customs office, port authority, and freight terminal 
+                    around the world. When you ship with Vanguard, you ship with confidence.
+                </p>
+            </div>
+            <div class="reveal" style="transition-delay: 0.15s;">
+                <div class="glass rounded-2xl p-8">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="text-center p-4">
+                            <div class="text-3xl font-bold text-cyan-400 mb-1">1987</div>
+                            <div class="text-sm text-slate-500">Founded</div>
+                        </div>
+                        <div class="text-center p-4">
+                            <div class="text-3xl font-bold text-cyan-400 mb-1">4,800+</div>
+                            <div class="text-sm text-slate-500">Employees</div>
+                        </div>
+                        <div class="text-center p-4">
+                            <div class="text-3xl font-bold text-cyan-400 mb-1">$2.8B</div>
+                            <div class="text-sm text-slate-500">Revenue (2024)</div>
+                        </div>
+                        <div class="text-center p-4">
+                            <div class="text-3xl font-bold text-cyan-400 mb-1">42</div>
+                            <div class="text-sm text-slate-500">Global Offices</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Timeline -->
+<section class="py-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16 reveal">
+            <span class="text-xs font-semibold text-cyan-400 uppercase tracking-[0.2em] mb-4 block">Our Journey</span>
+            <h2 class="text-3xl font-bold text-white">37 Years of Innovation</h2>
+        </div>
+
+        <div class="max-w-3xl mx-auto">
+            <div class="tracking-timeline">
+                <div class="timeline-step completed reveal">
+                    <div class="text-sm font-bold text-cyan-400 mb-1">1987</div>
+                    <h4 class="font-semibold text-white mb-1">Founded in Rotterdam</h4>
+                    <p class="text-sm text-slate-400">Hans van der Berg establishes Vanguard Freight Services with a single office and three employees, specializing in European ground transport.</p>
+                </div>
+                <div class="timeline-step completed reveal">
+                    <div class="text-sm font-bold text-cyan-400 mb-1">1995</div>
+                    <h4 class="font-semibold text-white mb-1">Ocean Freight Expansion</h4>
+                    <p class="text-sm text-slate-400">Partnership with major shipping lines enables FCL/LCL services across Asia-Pacific routes. Revenue crosses $100M for the first time.</p>
+                </div>
+                <div class="timeline-step completed reveal">
+                    <div class="text-sm font-bold text-cyan-400 mb-1">2003</div>
+                    <h4 class="font-semibold text-white mb-1">Air Freight Division</h4>
+                    <p class="text-sm text-slate-400">Launch of dedicated air freight operations with charter capabilities. Opens regional hubs in Singapore, Dubai, and Chicago.</p>
+                </div>
+                <div class="timeline-step completed reveal">
+                    <div class="text-sm font-bold text-cyan-400 mb-1">2012</div>
+                    <h4 class="font-semibold text-white mb-1">Digital Transformation</h4>
+                    <p class="text-sm text-slate-400">Launch of proprietary tracking platform with real-time GPS visibility. Becomes first logistics firm to achieve ISO 27001 for information security.</p>
+                </div>
+                <div class="timeline-step completed reveal">
+                    <div class="text-sm font-bold text-cyan-400 mb-1">2019</div>
+                    <h4 class="font-semibold text-white mb-1">Zero-Trust Architecture</h4>
+                    <p class="text-sm text-slate-400">Implementation of enterprise-wide zero-trust security across all IT infrastructure. SOC 2 Type II certification achieved.</p>
+                </div>
+                <div class="timeline-step active reveal">
+                    <div class="text-sm font-bold text-amber-400 mb-1">2024</div>
+                    <h4 class="font-semibold text-white mb-1">AI-Powered Logistics</h4>
+                    <p class="text-sm text-slate-400">Deployment of machine learning models for route optimization, demand forecasting, and automated customs documentation. Revenue exceeds $2.8B.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Core Values -->
+<section class="py-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16 reveal">
+            <span class="text-xs font-semibold text-cyan-400 uppercase tracking-[0.2em] mb-4 block">Our Values</span>
+            <h2 class="text-3xl font-bold text-white">What Drives Us</h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="service-card text-center reveal">
+                <div class="w-14 h-14 rounded-xl bg-cyan-500/15 flex items-center justify-center mx-auto mb-5">
+                    <svg class="w-7 h-7 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-3">Security First</h3>
+                <p class="text-sm text-slate-400">Every system, every process, every shipment is built on a foundation of trust and verified security. We never cut corners.</p>
+            </div>
+            <div class="service-card text-center reveal" style="transition-delay: 0.1s;">
+                <div class="w-14 h-14 rounded-xl bg-emerald-500/15 flex items-center justify-center mx-auto mb-5">
+                    <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-3">Relentless Efficiency</h3>
+                <p class="text-sm text-slate-400">We optimize every mile, every minute, every dollar. Our technology stack ensures nothing is wasted in the logistics chain.</p>
+            </div>
+            <div class="service-card text-center reveal" style="transition-delay: 0.2s;">
+                <div class="w-14 h-14 rounded-xl bg-amber-500/15 flex items-center justify-center mx-auto mb-5">
+                    <svg class="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-3">Client Partnership</h3>
+                <p class="text-sm text-slate-400">We don't just move cargo — we become an extension of your operations. Dedicated teams, 24/7 support, complete accountability.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Certifications -->
+<section class="py-16 border-t border-slate-800/60">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 reveal">
+        <div class="text-center mb-10">
+            <h3 class="text-lg font-semibold text-white mb-2">Certifications & Compliance</h3>
+            <p class="text-sm text-slate-500">Independently audited. Globally recognized.</p>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-8 sm:gap-16">
+            <div class="text-center">
+                <div class="text-xl font-bold text-slate-300 mb-1">ISO 27001</div>
+                <div class="text-xs text-slate-600">Information Security</div>
+            </div>
+            <div class="text-center">
+                <div class="text-xl font-bold text-slate-300 mb-1">SOC 2</div>
+                <div class="text-xs text-slate-600">Type II Certified</div>
+            </div>
+            <div class="text-center">
+                <div class="text-xl font-bold text-slate-300 mb-1">C-TPAT</div>
+                <div class="text-xs text-slate-600">Tier III Partner</div>
+            </div>
+            <div class="text-center">
+                <div class="text-xl font-bold text-slate-300 mb-1">AEO</div>
+                <div class="text-xs text-slate-600">Authorized Operator</div>
+            </div>
+            <div class="text-center">
+                <div class="text-xl font-bold text-slate-300 mb-1">IATA</div>
+                <div class="text-xs text-slate-600">Cargo Agent</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
