@@ -177,7 +177,18 @@ class ThreatIntelligence:
             self._engage_red_alert(ip, score)
 
         # Attempt iptables block (only works on Linux with root)
-        siem_log(f"[*] Attempting IP block: {ip}")
+        siem_log(f"[*] Attempting TEMPORARY IP block: {ip} for 15 minutes")
+        
+        def unban_ip(blocked_ip):
+            siem_log(f"[*] 15-minute penalty expired. Unbanning IP: {blocked_ip}")
+            if os.name != 'nt':
+                subprocess.run(f"iptables -D INPUT -s {blocked_ip} -j DROP".split(), capture_output=True)
+            if blocked_ip in self.blocked_ips:
+                self.blocked_ips.remove(blocked_ip)
+            # Reset their threat score so they can try again smoothly
+            self.ip_scores[blocked_ip] = 0
+            self.ip_threat_level[blocked_ip] = 'GREEN'
+
         try:
             # Generate the iptables command (execute only on Linux)
             cmd = f"iptables -A INPUT -s {ip} -j DROP"
@@ -188,12 +199,18 @@ class ThreatIntelligence:
                 )
                 if result.returncode == 0:
                     self.blocked_ips.add(ip)
-                    siem_log(f"[+] IP {ip} blocked via iptables")
+                    siem_log(f"[+] IP {ip} temporarily blocked via iptables")
+                    # Schedule unban in 900 seconds (15 minutes)
+                    import threading
+                    threading.Timer(900.0, unban_ip, args=[ip]).start()
                 else:
                     siem_log(f"[!] iptables block failed (need root?): {result.stderr.strip()}")
             else:
                 siem_log(f"[*] Windows detected — iptables block skipped (command: {cmd})")
                 self.blocked_ips.add(ip)
+                # Schedule unban simulation
+                import threading
+                threading.Timer(900.0, unban_ip, args=[ip]).start()
 
         except Exception as e:
             siem_log(f"[!] IP block error: {e}")

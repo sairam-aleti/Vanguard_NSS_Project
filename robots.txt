@@ -3,10 +3,8 @@
 
 User-agent: *
 Allow: /
-Disallow: /staff_portal
 Disallow: /dashboard
 Disallow: /fetch_data
-Disallow: /backup_configs/
 Disallow: /static/js/shield.js
 
 # Internal note: SSH maintenance port moved to 58229
