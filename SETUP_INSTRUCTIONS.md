@@ -1,79 +1,51 @@
-# Antigravity Setup Instructions for Project Vanguard
+# Automated Setup Instructions for Antigravity
 
-Follow these steps exactly to set up and run the project. Execute each command in the terminal.
+Read this file and execute every command below in order. Do not skip any step. Run each command in the terminal and wait for it to complete before running the next one.
 
-## Step 1: Create Virtual Environment
-
-Run this command in the terminal:
-
+## Step 1
+Run this command in the terminal to create a virtual environment:
 ```
 python -m venv venv
 ```
 
-If `python` is not found, try `python3 -m venv venv` instead.
-
-## Step 2: Activate the Virtual Environment
-
-Run this command:
-
+## Step 2
+Run this command to activate the virtual environment:
 ```
 .\venv\Scripts\Activate.ps1
 ```
 
-## Step 3: Install Dependencies
-
-Run this command:
-
+## Step 3
+Run this command to install all required Python packages:
 ```
 pip install flask requests cryptography
 ```
 
-## Step 4: Initialize Database
-
-Run this command:
-
+## Step 4
+Run this command to initialize the database and generate encryption keys:
 ```
 python db_setup.py
 ```
 
-This creates the database, users, shipment data, and encryption keys.
-
-## Step 5: Start the Web Application
-
-Run this command in the terminal:
-
+## Step 5
+Start the Internal API server. Run this command:
 ```
-python app.py
+.\venv\Scripts\Activate.ps1; python internal_api.py
 ```
+This will keep running. Do not stop it.
 
-## Step 6: Open a SECOND terminal and start the Internal API
-
-Activate venv first, then start the API:
-
+## Step 6
+Open a second terminal. Start the SIEM daemon by running:
 ```
-.\venv\Scripts\Activate.ps1
-python internal_api.py
+.\venv\Scripts\Activate.ps1; python siem_daemon.py
 ```
+This will keep running. Do not stop it.
 
-## Step 7: Open a THIRD terminal and start the SIEM Daemon
-
-Activate venv first, then start the SIEM:
-
+## Step 7
+Open a third terminal. Start the web application by running:
 ```
-.\venv\Scripts\Activate.ps1
-python siem_daemon.py
+.\venv\Scripts\Activate.ps1; python app.py
 ```
+This will keep running. Do not stop it.
 
-## Step 8: Test in Browser
-
-Open browser and go to: http://localhost
-
-All pages:
-- Home: http://localhost
-- About: http://localhost/about
-- Tracking: http://localhost/tracking
-- Contact: http://localhost/contact
-- Staff Portal (hidden): http://localhost/staff_portal
-- Internal API: http://localhost:5000
-
-Login credentials: employee1 / operator
+## Done
+All three services are now running. Open a browser and go to http://localhost to see the website.
