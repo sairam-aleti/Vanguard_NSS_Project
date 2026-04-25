@@ -36,7 +36,7 @@ import secrets
 # ═══════════════════════════════════════════════
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('VG_SECRET_KEY', secrets.token_hex(32))
+app.secret_key = os.environ.get('VG_SECRET_KEY', 'shipping')
 
 # Session Security
 app.config['SESSION_COOKIE_HTTPONLY'] = True

@@ -1,0 +1,14 @@
+[2026-04-25 01:24:28] NOT_FOUND | IP: 127.0.0.1 | Path: /favicon.ico
+[2026-04-25 01:24:35] RECON_BACKUP | IP: 127.0.0.1 | Directory listing accessed: /backup_configs/
+[2026-04-25 01:24:42] RECON_BACKUP | IP: 127.0.0.1 | File accessed: /backup_configs/.env.bak
+[2026-04-25 01:24:54] LOGIN_SUCCESS | IP: 127.0.0.1 | User: employee1
+[2026-04-25 01:28:40] LOGIN_SUCCESS | IP: 127.0.0.1 | User: employee1
+[2026-04-25 01:28:52] SSRF_FETCH | IP: 127.0.0.1 | URL: http://127.0.0.1:5000/api/admin_keys | Status: 200 | Size: 348
+[2026-04-25 01:30:56] NOT_FOUND | IP: 127.0.0.1 | Path: /opt/vanguard/data/vault.key
+[2026-04-25 01:31:48] LOGOUT | IP: 127.0.0.1 | User: employee1
+[2026-04-25 01:32:14] LOGIN_SUCCESS | IP: 127.0.0.1 | User: admin
+[2026-04-25 01:32:46] SSRF_FETCH | IP: 127.0.0.1 | URL: http://127.0.0.1:5000/api/manifest_info | Status: 200 | Size: 266
+[2026-04-25 02:25:02] NOT_FOUND | IP: 127.0.0.1 | Path: /favicon.ico
+[2026-04-25 02:26:02] TRACKING_QUERY | IP: 127.0.0.1 | Query: VGL-2024-78451
+[2026-04-25 02:26:57] LOGIN_SUCCESS | IP: 127.0.0.1 | User: employee1
+[2026-04-25 02:27:20] LOGOUT | IP: 127.0.0.1 | User: employee1
