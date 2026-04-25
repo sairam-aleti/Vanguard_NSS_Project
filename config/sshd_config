@@ -1,25 +1,37 @@
-# Vanguard Logistics — SSH Hardening Configuration
+# Vanguard Logistics — SSH Configuration
 # Install: sudo cp sshd_config /etc/ssh/sshd_config && sudo systemctl restart sshd
+#
+# CLAIMED POSTURE (Phase 1 Report):
+#   "Password authentication is explicitly disabled.
+#    Access requires 2048-bit RSA keys."
+#
+# ACTUAL DEPLOYMENT (Intentional Deviation):
+#   PasswordAuthentication is ENABLED.
+#   This is the SSH misconfiguration vulnerability.
+#   An attacker who cracks the admin MD5 hash can
+#   SSH in with the password despite our claims.
 
-# Non-standard port (hint in robots.txt for CTF)
+# Non-standard port (discovered via nmap scan)
 Port 58229
 
 # Disable root login
 PermitRootLogin no
 
-# Key-based authentication only
+# Key-based authentication enabled
 PubkeyAuthentication yes
-PasswordAuthentication no
+
+# VULNERABILITY: Password auth is ON despite claiming it is OFF
+PasswordAuthentication yes
 ChallengeResponseAuthentication no
-UsePAM no
+UsePAM yes
 
 # Connection limits
 MaxAuthTries 3
 MaxSessions 3
 LoginGraceTime 30
 
-# Restrict to specific users
-AllowUsers vanguard
+# Allow both the system user and the admin user
+AllowUsers vanguard admin
 
 # Disable forwarding
 X11Forwarding no
