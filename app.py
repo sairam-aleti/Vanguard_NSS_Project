@@ -92,6 +92,23 @@ def apply_security_headers(response):
 @app.before_request
 def enforce_security():
     """Pre-request security enforcement."""
+    # [WAF] Application-Layer Block Check
+    try:
+        import json
+        banned_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'banned_ips.json')
+        if os.path.exists(banned_file):
+            with open(banned_file, 'r') as f:
+                banned_ips = json.load(f)
+            if request.remote_addr in banned_ips:
+                return make_response(
+                    ERROR_PAGE.replace('{{ code }}', '403')
+                    .replace('{{ title }}', '🚨 VANGUARD SEC-OPS ALARM 🚨')
+                    .replace('{{ message }}', 'Your IP has been temporarily suspended for 10 minutes due to suspicious activity (e.g. Rate Limiting, Brute Force).'),
+                    403
+                )
+    except Exception:
+        pass
+
     # [FIX #12] Block unexpected HTTP methods globally
     allowed_methods = {'GET', 'POST', 'HEAD', 'OPTIONS'}
     if request.method not in allowed_methods:

@@ -81,8 +81,7 @@ class ThreatIntelligence:
         self.ip_events = {}       # IP -> list of (timestamp, event_type)
         self.ip_threat_level = {} # IP -> current threat level string
         self.blocked_ips = set()  # IPs that have been blocked via iptables
-        self.honeypot_active = False  # Whether admin hash has been swapped
-        self.original_admin_hash = None
+        self.waf_banned_ips = set() # IPs blocked by Application-Layer WAF
         self.events_processed = 0
 
     def process_event(self, event_type, ip, details, timestamp):
@@ -132,73 +131,54 @@ class ThreatIntelligence:
 
         if new_level == 'DEFCON1' and ip not in self.blocked_ips:
             action = self._engage_defcon1(ip, score)
-        elif new_level == 'RED' and not self.honeypot_active:
+        elif new_level == 'RED' and ip not in self.waf_banned_ips:
             action = self._engage_red_alert(ip, score)
         elif new_level == 'ORANGE':
             action = f"ORANGE_ALERT: IP {ip} under elevated monitoring (score: {score})"
 
         return action
 
+    def _update_banned_ips_file(self):
+        """Write the current WAF-banned IPs to a JSON file for Flask to read."""
+        try:
+            with open(os.path.join(BASE_DIR, 'banned_ips.json'), 'w') as f:
+                json.dump(list(self.waf_banned_ips), f)
+        except Exception as e:
+            siem_log(f"[!] Error writing banned_ips.json: {e}")
+
+    def _unban_waf(self, ip):
+        """Remove IP from WAF ban list after penalty expires."""
+        if ip in self.waf_banned_ips:
+            self.waf_banned_ips.remove(ip)
+            self._update_banned_ips_file()
+            siem_log(f"[*] 10-minute WAF penalty expired for {ip}. Access restored.")
+            # Reset their threat score so they can try again
+            self.ip_scores[ip] = 0
+            self.ip_threat_level[ip] = 'GREEN'
+
     def _engage_red_alert(self, ip, score):
-        """RED level: Swap admin hash for honeypot hash."""
+        """RED level: Application-Layer WAF Block for 10 minutes."""
         siem_log(f"[!!!] RED ALERT TRIGGERED by {ip} (score: {score})")
-        siem_log("[*] Engaging Active Defense: Swapping Admin Hash → Honeypot")
+        siem_log("[*] Engaging Active Defense: WAF Application-Layer Block")
 
-        try:
-            conn = sqlite3.connect(DB_FILE)
-            cursor = conn.cursor()
-
-            # Save the real hash for potential restoration
-            cursor.execute("SELECT password_hash FROM users WHERE username='admin'")
-            real_hash = cursor.fetchone()
-            if real_hash and not self.original_admin_hash:
-                self.original_admin_hash = real_hash[0]
-                siem_log(f"[*] Original admin hash backed up: {real_hash[0][:8]}...")
-
-            # Swap to honeypot hash: MD5("nice_try_red_team")
-            fake_hash = hashlib.md5(b"nice_try_red_team").hexdigest()
-            cursor.execute("UPDATE users SET password_hash=? WHERE username='admin'", (fake_hash,))
-            conn.commit()
-            conn.close()
-
-            self.honeypot_active = True
-            siem_log(f"[+] Admin hash swapped to honeypot: {fake_hash[:8]}...")
-            siem_log("[+] Attackers will now steal fake credentials → dead end")
-            
-            # Schedule reversion in 10 minutes (600 seconds)
-            import threading
-            threading.Timer(600.0, self._disengage_red_alert).start()
-            
-            return f"HONEYPOT_ACTIVATED: Admin hash swapped by {ip} (score: {score})"
-
-        except Exception as e:
-            siem_log(f"[!] ERROR during hash swap: {e}")
-            return None
-
-    def _disengage_red_alert(self):
-        """Restore the original admin hash after the penalty period expires."""
-        if not self.honeypot_active or not self.original_admin_hash:
-            return
-            
-        siem_log("[*] 10-minute Honeypot penalty expired. Restoring real admin hash...")
-        try:
-            conn = sqlite3.connect(DB_FILE)
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET password_hash=? WHERE username='admin'", (self.original_admin_hash,))
-            conn.commit()
-            conn.close()
-            
-            self.honeypot_active = False
-            siem_log("[+] Real admin hash restored. Attackers can now progress.")
-        except Exception as e:
-            siem_log(f"[!] ERROR restoring admin hash: {e}")
+        self.waf_banned_ips.add(ip)
+        self._update_banned_ips_file()
+        
+        siem_log(f"[+] IP {ip} added to WAF ban list for 10 minutes.")
+        siem_log("[+] Attackers will now see the 403 Suspended screen.")
+        
+        # Schedule reversion in 10 minutes (600 seconds)
+        import threading
+        threading.Timer(600.0, self._unban_waf, args=[ip]).start()
+        
+        return f"WAF_BLOCK_ACTIVATED: {ip} suspended for 10 mins (score: {score})"
 
     def _engage_defcon1(self, ip, score):
-        """DEFCON1: Swap hash + attempt IP block via iptables."""
+        """DEFCON1: WAF block + attempt IP block via iptables."""
         siem_log(f"[!!!] DEFCON 1 TRIGGERED by {ip} (score: {score})")
 
-        # Ensure honeypot is active
-        if not self.honeypot_active:
+        # Ensure WAF is active
+        if ip not in self.waf_banned_ips:
             self._engage_red_alert(ip, score)
 
         # Attempt iptables block (only works on Linux with root)
@@ -247,7 +227,7 @@ class ThreatIntelligence:
         return {
             'events_processed': self.events_processed,
             'tracked_ips': len(self.ip_scores),
-            'honeypot_active': self.honeypot_active,
+            'waf_banned_ips': list(self.waf_banned_ips),
             'blocked_ips': list(self.blocked_ips),
             'threat_levels': dict(self.ip_threat_level),
             'scores': dict(self.ip_scores),
