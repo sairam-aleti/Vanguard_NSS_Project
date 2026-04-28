@@ -310,7 +310,7 @@ def contact():
 # HIDDEN STAFF PORTAL — Accessible only via /staff_portal
 # ═══════════════════════════════════════════════
 
-@app.route('/staff_portal', methods=['GET', 'POST'])
+@app.route('/portal', methods=['GET', 'POST'])
 def staff_portal():
     """Hidden staff login page — not linked in navigation."""
     if 'username' in session:
@@ -619,7 +619,7 @@ def robots_txt():
     return "User-agent: *\nDisallow: /staff_portal\n", 200, {'Content-Type': 'text/plain'}
 
 
-@app.route('/backup_configs/', methods=['GET'])
+@app.route('/backup/', methods=['GET'])
 def backup_configs_index():
     """
     INTENTIONAL VULNERABILITY: Exposed backup directory.
@@ -627,20 +627,20 @@ def backup_configs_index():
     web server with directory listing enabled.
     The .env.bak file contains employee1 credentials.
     """
-    backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup_configs')
+    backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup')
     if not os.path.isdir(backup_dir):
         abort(404)
 
     files = os.listdir(backup_dir)
-    log_security_event('RECON_BACKUP', request.remote_addr, 'Directory listing accessed: /backup_configs/')
+    log_security_event('RECON_BACKUP', request.remote_addr, 'Directory listing accessed: /backup/')
 
-    listing = '<html><head><title>Index of /backup_configs/</title></head>'
-    listing += '<body><h1>Index of /backup_configs/</h1><hr><pre>'
+    listing = '<html><head><title>Index of /backup/</title></head>'
+    listing += '<body><h1>Index of /backup/</h1><hr><pre>'
     listing += '<a href="/">../</a>\n'
     for fname in sorted(files):
         fpath = os.path.join(backup_dir, fname)
         size = os.path.getsize(fpath) if os.path.isfile(fpath) else '-'
-        listing += f'<a href="/backup_configs/{fname}">{fname}</a>{"":>{40-len(fname)}} {size}\n'
+        listing += f'<a href="/backup/{fname}">{fname}</a>{"":>{40-len(fname)}} {size}\n'
     listing += '</pre><hr></body></html>'
 
     resp = make_response(listing)
@@ -648,7 +648,7 @@ def backup_configs_index():
     return resp
 
 
-@app.route('/backup_configs/<path:filename>', methods=['GET'])
+@app.route('/backup/<path:filename>', methods=['GET'])
 def backup_configs_file(filename):
     """
     INTENTIONAL VULNERABILITY: Serves backup config files.
@@ -658,13 +658,13 @@ def backup_configs_file(filename):
     if '..' in filename or '/' in filename or '\\' in filename:
         abort(403)
 
-    backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup_configs')
+    backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup')
     filepath = os.path.join(backup_dir, filename)
 
     if not os.path.isfile(filepath):
         abort(404)
 
-    log_security_event('RECON_BACKUP', request.remote_addr, f'File accessed: /backup_configs/{filename}')
+    log_security_event('RECON_BACKUP', request.remote_addr, f'File accessed: /backup/{filename}')
 
     with open(filepath, 'r', errors='replace') as f:
         content = f.read()
