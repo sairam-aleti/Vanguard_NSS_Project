@@ -13,6 +13,7 @@ manifest.enc
 *.log
 siem_daemon.log
 api_access.log
+banned_ips.json
 
 # Python
 __pycache__/
