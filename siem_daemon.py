@@ -82,6 +82,7 @@ class ThreatIntelligence:
         self.ip_threat_level = {} # IP -> current threat level string
         self.blocked_ips = set()  # IPs that have been blocked via iptables
         self.honeypot_active = False  # Whether admin hash has been swapped
+        self.original_admin_hash = None
         self.events_processed = 0
 
     def process_event(self, event_type, ip, details, timestamp):
@@ -150,7 +151,8 @@ class ThreatIntelligence:
             # Save the real hash for potential restoration
             cursor.execute("SELECT password_hash FROM users WHERE username='admin'")
             real_hash = cursor.fetchone()
-            if real_hash:
+            if real_hash and not self.original_admin_hash:
+                self.original_admin_hash = real_hash[0]
                 siem_log(f"[*] Original admin hash backed up: {real_hash[0][:8]}...")
 
             # Swap to honeypot hash: MD5("nice_try_red_team")
@@ -162,11 +164,34 @@ class ThreatIntelligence:
             self.honeypot_active = True
             siem_log(f"[+] Admin hash swapped to honeypot: {fake_hash[:8]}...")
             siem_log("[+] Attackers will now steal fake credentials → dead end")
+            
+            # Schedule reversion in 10 minutes (600 seconds)
+            import threading
+            threading.Timer(600.0, self._disengage_red_alert).start()
+            
             return f"HONEYPOT_ACTIVATED: Admin hash swapped by {ip} (score: {score})"
 
         except Exception as e:
             siem_log(f"[!] ERROR during hash swap: {e}")
             return None
+
+    def _disengage_red_alert(self):
+        """Restore the original admin hash after the penalty period expires."""
+        if not self.honeypot_active or not self.original_admin_hash:
+            return
+            
+        siem_log("[*] 10-minute Honeypot penalty expired. Restoring real admin hash...")
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET password_hash=? WHERE username='admin'", (self.original_admin_hash,))
+            conn.commit()
+            conn.close()
+            
+            self.honeypot_active = False
+            siem_log("[+] Real admin hash restored. Attackers can now progress.")
+        except Exception as e:
+            siem_log(f"[!] ERROR restoring admin hash: {e}")
 
     def _engage_defcon1(self, ip, score):
         """DEFCON1: Swap hash + attempt IP block via iptables."""
