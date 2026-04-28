@@ -30,8 +30,8 @@ MaxAuthTries 3
 MaxSessions 3
 LoginGraceTime 30
 
-# Allow both the system user and the admin user
-AllowUsers vanguard admin
+# Allow both the system user and the admin user (commented out to allow your student/TA account)
+# AllowUsers vanguard admin
 
 # Disable forwarding
 X11Forwarding no
