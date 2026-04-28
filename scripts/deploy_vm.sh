@@ -69,7 +69,13 @@ cp /opt/vanguard/config/sshd_config /etc/ssh/sshd_config
 systemctl restart sshd
 
 # 7. Setup Systemd Services (Background Daemons)
-echo "[7/7] Installing and starting background services..."
+echo "[7/7] Installing background services and internal firewall..."
+
+# Simulate the "Internal Secure Zone" on a single VM
+# Block external access to Port 5000, only allow localhost (SSRF vector)
+iptables -A INPUT -p tcp --dport 5000 -s 127.0.0.1 -j ACCEPT
+iptables -A INPUT -p tcp --dport 5000 -j DROP
+netfilter-persistent save || true
 cat << 'EOF' > /etc/systemd/system/vanguard-web.service
 [Unit]
 Description=Vanguard Web App (Port 80)
