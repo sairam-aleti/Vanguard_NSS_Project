@@ -69,8 +69,8 @@ dirb http://<TARGET_IP> /usr/share/dirb/wordlists/common.txt
 
 **Key discoveries:**
 ```
-/staff_portal     (Status: 200)   ← Hidden login page!
-/backup_configs   (Status: 200)   ← Exposed backup directory!
+/portal     (Status: 200)   ← Hidden login page!
+/backup   (Status: 200)   ← Exposed backup directory!
 /about            (Status: 200)
 /tracking         (Status: 200)
 /contact          (Status: 200)
@@ -78,12 +78,12 @@ dirb http://<TARGET_IP> /usr/share/dirb/wordlists/common.txt
 
 ### 2.2 Check Backup Configs
 ```bash
-curl http://<TARGET_IP>/backup_configs/
+curl http://<TARGET_IP>/backup/
 ```
 
 See a directory listing. Download the .env.bak file:
 ```bash
-curl http://<TARGET_IP>/backup_configs/.env.bak
+curl http://<TARGET_IP>/backup/.env.bak
 ```
 
 **Contents:**
@@ -95,7 +95,7 @@ INTERNAL_API_PORT=5000
 ```
 
 ### 2.3 Try the Credentials (RABBIT HOLE)
-Go to `http://<TARGET_IP>/staff_portal`
+Go to `http://<TARGET_IP>/portal`
 Try `jmiller` / `Winter2023!` → **LOGIN FAILS**
 
 These credentials are from Q1 2024 and have been rotated.
@@ -108,14 +108,14 @@ But you now know:
 ## PHASE 3: SESSION COOKIE FORGERY (Cryptography Attack)
 
 ### 3.1 Get a Session Cookie
-Visit `http://<TARGET_IP>/staff_portal` in your browser.
+Visit `http://<TARGET_IP>/portal` in your browser.
 Even without logging in, Flask sets a session cookie.
 
 Open DevTools (F12) → Application tab → Cookies → find the `session` cookie.
 
 Or use curl:
 ```bash
-curl -v http://<TARGET_IP>/staff_portal 2>&1 | grep "set-cookie"
+curl -v http://<TARGET_IP>/portal 2>&1 | grep "set-cookie"
 ```
 
 **Example cookie value:**
