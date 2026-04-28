@@ -44,6 +44,16 @@ if id "vanguard" &>/dev/null; then
 else
     useradd -m -s /bin/bash vanguard
 fi
+
+# Create the admin user that the attacker will SSH into
+echo "[3.5/7] Setting up vulnerable 'admin' OS user..."
+if id "admin" &>/dev/null; then
+    echo "       User admin already exists."
+else
+    # Create user and set password to 'trustno1'
+    useradd -m -s /bin/bash admin
+    echo "admin:trustno1" | chpasswd
+fi
 chown -R vanguard:vanguard /opt/vanguard
 
 # 4. Setup Python Environment & Database
