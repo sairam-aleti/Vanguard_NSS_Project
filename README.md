@@ -1,167 +1,69 @@
-# 🛡️ Project Vanguard — Secure Logistics & Supply Chain Defense
+# 🛡️ Vanguard Logistics — Enterprise Network & Security Architecture
 
-> A high-fidelity 3-tier enterprise network emulation with intentional SSRF vulnerability, 
-> active SIEM defense, and military-grade network segmentation.
-
----
-
-## ⚡ Quick Start (Local Development)
-
-### Prerequisites
-- Python 3.10+
-- pip (comes with Python)
-
-### 1. Clone & Setup Virtual Environment
-
-```bash
-# Clone the repository
-git clone <repo-url>
-cd Vanguard_Project
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# Windows (PowerShell):
-.\venv\Scripts\Activate.ps1
-
-# Windows (CMD):
-.\venv\Scripts\activate.bat
-
-# Linux/Mac:
-source venv/bin/activate
-```
-
-### 2. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Initialize Database
-
-```bash
-python db_setup.py
-```
-
-This creates:
-- `vanguard.db` — SQLite database with users & shipments
-- `vault.key` — AES encryption key
-- `manifest.enc` — Encrypted CTF flag
-
-### 4. Run the Application
-
-**Terminal 1 — Web Application (Port 80):**
-```bash
-# Note: Port 80 may require admin/sudo privileges
-# Use port 8080 for local dev if needed
-python app.py
-```
-
-**Terminal 2 — Internal API (Port 5000):**
-```bash
-python internal_api.py
-```
-
-**Terminal 3 — SIEM Daemon:**
-```bash
-python siem_daemon.py
-```
-
-### 5. Access the Application
-
-| Page | URL |
-|------|-----|
-| Home (Corporate Site) | http://localhost/ |
-| About | http://localhost/about |
-| Tracking | http://localhost/tracking |
-| Contact | http://localhost/contact |
-| **Staff Portal (Hidden)** | http://localhost/staff_portal |
-| Internal API | http://localhost:5000/ |
+> **Notice:** This repository contains the deployable infrastructure for the Vanguard Logistics Corporate Network. This system was designed to emulate a secure, segmented enterprise environment with active monitoring and strict access controls.
 
 ---
 
-## 🔑 CTF Credentials
+## 1. System Overview & Architecture
 
-| User | Password | MD5 Hash | Role |
-|------|----------|----------|------|
-| employee1 | `operator` | `1a7ed... ` | logistics |
-| admin | `admin_core_77` | `8f14e...` | administrator |
+Vanguard Logistics utilizes a segmented, two-tier logical architecture designed to protect sensitive shipping manifests and internal databases from external threats.
 
----
+### 🌐 Tier 1: The Perimeter (Web Tier)
+*   **Service:** Corporate Web Application & Staff Portal
+*   **Port:** 80 (HTTP)
+*   **Access:** Publicly routable
+*   **Purpose:** Serves the public-facing corporate website, shipment tracking features, and the secure staff authentication portal. 
 
-## 🎯 Attack Path (Red Team)
-
-1. **Reconnaissance** → Find `/staff_portal` via `robots.txt` or directory brute-force
-2. **Credential Cracking** → Crack `employee1` password (`operator`) from leaked/guessed MD5
-3. **Login** → Authenticate at `/staff_portal` with `employee1:operator`
-4. **SSRF Discovery** → Find the "Customs API Fetcher" in the dashboard
-5. **SSRF Bypass** → Use decimal IP `http://2130706433:5000/api/admin_keys` to bypass the filter
-6. **Admin Hash** → Extract admin MD5 hash from the API response
-7. **Hash Cracking** → Crack `admin_core_77` from the MD5 hash
-8. **Flag** → Decrypt `manifest.enc` using `vault.key` → `flag{admin_credentials.txt}`
+### 🗄️ Tier 2: The Secure Zone (Internal API & Database)
+*   **Service:** Internal Logistics API & Vault
+*   **Port:** 5000 (HTTP API)
+*   **Access:** **Strictly Airgapped.** Blocked by internal `iptables` hardware-level firewalls. Only the Web Application (Tier 1) is authorized to communicate with this layer.
+*   **Purpose:** Houses the encrypted `vanguard.db` database and the highly classified VIP Cargo Manifest.
 
 ---
 
-## 🛡️ Blue Team Defense (SIEM)
+## 2. Claimed Security Posture & Access Controls
 
-The SIEM daemon (`siem_daemon.py`) provides:
+Our network relies on a defense-in-depth strategy. We claim the following controls are fully implemented and effectively protect the network:
 
-- **Multi-signal detection**: Tracks LOGIN_FAILED, BLOCKED_SSRF, RATE_LIMITED, etc.
-- **Cross-event correlation**: Scores IPs higher when they generate multiple event types
-- **Behavior-based response**: Escalating threat levels (GREEN → YELLOW → ORANGE → RED → DEFCON1)
-- **Active defense at RED level**: Swaps admin hash for honeypot hash (`nice_try_red_team`)
-- **IP blocking at DEFCON1**: Generates iptables commands to block attacker IPs
+### 🔐 Authentication & Session Management
+*   **Staff Portal:** Access to the internal staff dashboard requires valid credentials. Sessions are securely signed using Flask's state-of-the-art cryptographic cookie management to prevent tampering.
+*   **Server Administration (SSH):** Remote administration is moved off the standard Port 22 to evade automated scanners. Furthermore, **Password Authentication is explicitly disabled.** Access requires 2048-bit RSA cryptographic keys, rendering brute-force attacks impossible.
 
----
-
-## 📁 Project Structure
-
-```
-Vanguard_Project/
-├── app.py                      # Main Flask web application
-├── internal_api.py             # Internal API server (Port 5000)
-├── db_setup.py                 # Database & encryption setup
-├── siem_daemon.py              # SIEM active defense daemon
-├── decrypt_flag.py             # Flag decryption utility
-├── requirements.txt            # Python dependencies
-├── robots.txt                  # SSH port hint for recon
-├── vanguard.db                 # SQLite database (generated)
-├── vault.key                   # AES key (generated)
-├── manifest.enc                # Encrypted flag (generated)
-├── security.log                # Security event log
-├── templates/
-│   ├── base.html               # Master layout
-│   ├── index.html              # Corporate landing page
-│   ├── about.html              # Company info
-│   ├── tracking.html           # Shipment tracking (bait)
-│   ├── contact.html            # Contact page
-│   ├── portal.html             # Hidden staff login
-│   └── dashboard.html          # Staff dashboard + SSRF tool
-├── static/
-│   ├── css/style.css           # Custom styles & animations
-│   ├── js/shield.js            # Anti-inspect protection
-│   └── img/hero-port.png       # Hero background image
-├── config/
-│   ├── vanguard-web.service    # Systemd unit (web app)
-│   ├── vanguard-api.service    # Systemd unit (internal API)
-│   ├── vanguard-siem.service   # Systemd unit (SIEM)
-│   ├── iptables-rules.sh       # Firewall hardening
-│   ├── sshd_config             # SSH hardening
-│   └── vsftpd.conf             # FTP chroot config
-├── scripts/
-│   └── health_check.sh         # Service health monitor
-└── docs/
-    └── DEPLOYMENT.md           # Full VirtualBox setup guide
-```
+### 🛡️ Active Threat Intelligence (Vanguard SIEM)
+Vanguard Logistics does not rely solely on static firewalls. We have deployed a custom **Security Information and Event Management (SIEM) Daemon** that provides Advanced Active Defense:
+*   **Multi-Signal Detection:** Continuously monitors logs for diverse attack signatures (Failed Logins, SSRF attempts, Rate Limit violations, CSRF mismatch).
+*   **Behavioral Correlation:** Correlates disparate events originating from the same IP address to detect coordinated reconnaissance or exploitation attempts.
+*   **Escalating Threat Levels:** Dynamically assigns Threat Scores to external IPs, escalating from GREEN (Normal) to DEFCON 1 (Critical).
+*   **Active Defense:** At critical threat levels, the SIEM actively alters the environment (e.g., deploying honeypot data to mislead attackers) and dynamically injects `iptables` rules to temporarily ban hostile actors.
 
 ---
 
-## 📋 For VM Deployment
+## 3. Project Deployment (For Grading/TAs)
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the complete guide covering:
-- VirtualBox VM creation & network configuration
-- pfSense dual-firewall setup
-- Ubuntu Server deployment
-- Systemd service installation
-- iptables, SSH, and vsftpd hardening
+The entire Vanguard Logistics network has been consolidated into a single, highly-stable automated deployment script for ease of testing on centralized VM servers. The script dynamically creates the users, builds the internal firewalls, compiles binaries, and registers the background systemd daemons.
+
+### Automated VM Deployment
+1. Install a fresh **Ubuntu Server 22.04 LTS** virtual machine.
+2. Log in as any user and download the deployment script:
+   ```bash
+   wget https://raw.githubusercontent.com/sairam-aleti/Vanguard_NSS_Project/main/scripts/deploy_vm.sh
+   ```
+3. Make the script executable and run it as root:
+   ```bash
+   chmod +x deploy_vm.sh
+   sudo ./deploy_vm.sh
+   ```
+4. The script will output the accessible IPs and ports upon completion. 
+
+*Note: All services (`vanguard-web`, `vanguard-api`, `vanguard-siem`) run as background `systemd` daemons. You can monitor the active defense system in real-time via `journalctl -u vanguard-siem -f`.*
+
+---
+
+## ⚠️ Red Team Notice (Course Project Clause)
+
+**As per the Networks and Systems Security II requirements, the security posture claimed above contains intentional deviations from the actual deployment.** 
+
+This system is deliberately seeded with realistic, non-trivial vulnerabilities (arising from misconfiguration, weak assumptions, and overexposure). The Red Team is expected to interact with the system, identify where the "Claimed Posture" fails, and chain those vulnerabilities to extract the final encrypted VIP Cargo Manifest. 
+
+*Happy Hunting.*
