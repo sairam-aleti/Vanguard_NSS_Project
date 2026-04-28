@@ -100,12 +100,15 @@ def enforce_security():
             with open(banned_file, 'r') as f:
                 banned_ips = json.load(f)
             if request.remote_addr in banned_ips:
-                return make_response(
-                    ERROR_PAGE.replace('{{ code }}', '403')
-                    .replace('{{ title }}', '🚨 VANGUARD SEC-OPS ALARM 🚨')
-                    .replace('{{ message }}', 'Your IP has been temporarily suspended for 10 minutes due to suspicious activity (e.g. Rate Limiting, Brute Force).'),
-                    403
-                )
+                html_response = ERROR_PAGE.replace('{{ code }}', '403') \
+                    .replace('{{ title }}', '🚨 VANGUARD SEC-OPS ALARM 🚨') \
+                    .replace('{{ message }}', 'Your IP has been temporarily suspended for 10 minutes due to suspicious activity (e.g. Rate Limiting, Brute Force).')
+                
+                # Remove the 'Return Home' button since the whole site is suspended
+                import re
+                html_response = re.sub(r'<a href="/".*?</a>', '', html_response, flags=re.DOTALL)
+                
+                return make_response(html_response, 403)
     except Exception:
         pass
 
