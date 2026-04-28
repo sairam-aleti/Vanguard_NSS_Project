@@ -109,7 +109,7 @@ def create_encrypted_flag():
 
     # Encrypt the flag
     cipher_suite = Fernet(key)
-    flag_data = b"flag{admin_credentials.txt}"
+    flag_data = b"flag{VANGUARD_VIP_WEAPONS_MANIFEST_SECURED}"
     cipher_text = cipher_suite.encrypt(flag_data)
 
     with open(enc_path, 'wb') as enc_file:
