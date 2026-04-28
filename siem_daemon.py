@@ -43,7 +43,7 @@ POLL_INTERVAL = 2  # seconds between log checks
 EVENT_WEIGHTS = {
     'LOGIN_FAILED':    3,    # Failed login attempt
     'BLOCKED_SSRF':    8,    # Blocked SSRF attempt (high risk)
-    'RATE_LIMITED':    5,    # Rate limit triggered
+    'RATE_LIMITED':    2,    # Rate limit triggered (reduced so multiple tabs don't ban)
     'TRACKING_QUERY':  1,    # Tracking page recon (low individually)
     'CSRF_VIOLATION':  6,    # CSRF token mismatch
     'SSRF_FETCH':      2,    # Successful SSRF fetch (may be legitimate)
@@ -182,7 +182,7 @@ class ThreatIntelligence:
         def unban_ip(blocked_ip):
             siem_log(f"[*] 15-minute penalty expired. Unbanning IP: {blocked_ip}")
             if os.name != 'nt':
-                subprocess.run(f"iptables -D INPUT -s {blocked_ip} -j DROP".split(), capture_output=True)
+                subprocess.run(f"iptables -D INPUT -s {blocked_ip} -p tcp -m multiport --dports 80,5000 -j DROP".split(), capture_output=True)
             if blocked_ip in self.blocked_ips:
                 self.blocked_ips.remove(blocked_ip)
             # Reset their threat score so they can try again smoothly
@@ -190,8 +190,8 @@ class ThreatIntelligence:
             self.ip_threat_level[blocked_ip] = 'GREEN'
 
         try:
-            # Generate the iptables command (execute only on Linux)
-            cmd = f"iptables -A INPUT -s {ip} -j DROP"
+            # Generate the iptables command (only block Web/API ports, keep SSH alive)
+            cmd = f"iptables -A INPUT -s {ip} -p tcp -m multiport --dports 80,5000 -j DROP"
             if os.name != 'nt':  # Only execute on Linux
                 result = subprocess.run(
                     cmd.split(),
