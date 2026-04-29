@@ -102,7 +102,7 @@ def enforce_security():
             if request.remote_addr in banned_ips:
                 html_response = ERROR_PAGE.replace('{{ code }}', '403') \
                     .replace('{{ title }}', '🚨 VANGUARD SEC-OPS ALARM 🚨') \
-                    .replace('{{ message }}', 'Your IP has been temporarily suspended for 10 minutes due to suspicious activity (e.g. Rate Limiting, Brute Force).')
+                    .replace('{{ message }}', 'Your IP has been temporarily suspended due to a high Behavioral Threat Score. Our SIEM has detected coordinated suspicious activity.')
                 
                 # Remove the 'Return Home' button since the whole site is suspended
                 import re
